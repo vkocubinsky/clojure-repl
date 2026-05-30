@@ -1,0 +1,133 @@
+#+title: clojure-repl.el: Clojure REPL interaction
+
+*Note:* This documentation is incomplete, may be unreliable, and should be considered as a draft.
+
+This package provides basic interaction with a Clojure subprocess
+ (REPL).  It's based on ideas from ~inferior-lisp~ and ~inf-clojure~
+ packages.  ~clojure-repl~ provides a set of essential features for
+ interactive Clojure development:
+
+- REPL
+- Interactive code evaluation
+- Definition lookup
+- Documentation lookup
+- Macroexpansion
+- Run tests
+- Automatically switch namespace
+- Automatically load namespace
+- Automatically install repl functions
+- Print stack trace
+- Echo executed commands
+- Multiple projects support
+
+**Note:** Package ~clojure-repl~ evaluate current ~sexp~ instead of ~last sexp~.
+
+* Flows
+
+There are two major flows for work with package
+
+- Automatically load everything(DEFAULT)
+- Manually load namespace, call in-ns, install repl
+
+
+* Installation
+
+Currently, the recommended ways to install =clojure-repl= are with
+=use-package= and =:vc=, or from a local checkout.
+
+** Install with use-package and vc
+
+#+begin_src emacs-lisp
+(use-package clojure-repl
+  :vc (:url "https://github.com/vkocubinsky/clojure-repl"
+       :rev :newest)
+  :hook (clojure-mode . clojure-repl-minor-mode))
+#+end_src
+
+* Install from local source checkout
+
+#+begin_src emacs-lisp
+(use-package clojure-repl
+  :load-path "/path-to-repo/clojure-repl"
+  :hook (clojure-mode . clojure-repl-minor-mode))
+#+end_src
+
+
+* Keybinding
+
+** Keybinding for clojure buffer
+
+| Binding     | Command                          |
+|-------------+----------------------------------|
+| =C-M-x=     | ~clojure-repl-eval-defun~        |
+| =C-c C-c=   | ~clojure-repl-eval-paragraph~    |
+| =C-x C-e=   | ~clojure-repl-eval-sexp~         |
+| =C-c C-e=   | ~clojure-repl-eval-sexp~         |
+| =C-c C-p=   | ~clojure-repl-pprint-sexp~       |
+| =C-c C-b=   | ~clojure-repl-eval-buffer~       |
+| =C-c C-r=   | ~clojure-repl-eval-region~       |
+| =C-c C-o=   | ~clojure-repl-clear-repl-buffer~ |
+| =C-c C-z=   | ~clojure-repl-switch-to-repl~    |
+| =C-c C-q=   | ~clojure-repl-quit~              |
+| =C-c C-n=   | ~clojure-repl-switch-ns~         |
+| =C-c C-k=   | ~clojure-repl-reload~            |
+| =C-c C-l f= | ~clojure-repl-load-file~         |
+| =C-c C-l l= | ~clojure-repl-load~              |
+| =C-c C-l r= | ~clojure-repl-reload~            |
+| =C-c C-l a= | ~clojure-repl-reload-all~        |
+| =C-c C-l t= | ~clojure-repl-load-repl~         |
+| =C-c C-t a= | ~clojure-repl-run-all-tests~     |
+| =C-c C-t n= | ~clojure-repl-run-ns-tests~      |
+| =C-c C-t t= | ~clojure-repl-run-test~          |
+| =C-c C-j=   | ~clojure-repl-javadoc~           |
+| =C-c C-a=   | ~clojure-repl-show-pst~          |
+| =C-c C-m=   | ~clojure-repl-macroexpand~       |
+| =C-c C-v=   | ~clojure-repl-show-var-doc~      |
+| =C-c C-s=   | ~clojure-repl-show-var-source~   |
+
+
+
+
+** Keybinding for REPL buffer
+
+| Binding     | Command                                |
+|-------------+----------------------------------------|
+| =C-x C-e=   | ~clojure-repl-eval-sexp~               |
+| =C-c C-l t= | ~clojure-repl-load-repl~               |
+| =C-c C-v=   | ~clojure-repl-show-var-doc~            |
+| =C-c C-s=   | ~clojure-repl-show-var-source~         |
+| =C-c C-o=   | ~clojure-repl-clear-repl-buffer~       |
+| =C-c C-q=   | ~clojure-repl-quit~                    |
+| =C-c C-z=   | ~clojure-repl-switch-to-recent-buffer~ |
+
+
+* Configuration
+
+The following variables can be customized to control how =clojure-repl=
+behaves.
+
+| Variable                            | Description                                                                                                |
+|-------------------------------------+------------------------------------------------------------------------------------------------------------|
+| ~clojure-repl-program~              | Program name used to start the Clojure REPL.                                                               |
+| ~clojure-repl-echo~                 | When non-nil, commands executed from a Clojure buffer are inserted into the REPL buffer before being sent. |
+| ~clojure-repl-auto-load-repl~       | Automatically load REPL helper functions.                                                                  |
+| ~clojure-repl-auto-load~            | Automatically load the current namespace before evaluation commands.                                       |
+| ~clojure-repl-auto-switch-ns~       | Automatically switch the REPL to the current buffer namespace.                                             |
+| ~clojure-repl-repl-use-same-window~ | Show the REPL buffer in the current window instead of another window.                                      |
+| ~clojure-repl-auto-mode~            | Automatically enable ~clojure-repl-minor-mode~ in ~clojure-mode~ buffers.                                  |
+| ~clojure-repl-comint-prompt-regexp~ | Regexp used to recognize prompts in the REPL buffer.                                                       |
+
+
+#+begin_src emacs-lisp
+    (use-package clojure-repl
+    :vc (:url "https://github.com/vkocubinsky/clojure-repl"
+         :rev :newest)
+    :hook (clojure-mode . clojure-repl-minor-mode)
+    :custom
+    (clojure-repl-program "clojure -A:dev")
+    (clojure-repl-echo t)
+    (clojure-repl-auto-load nil)
+    (clojure-repl-auto-load-repl nil)
+    (clojure-repl-auto-switch-ns nil))
+
+#+end_src
