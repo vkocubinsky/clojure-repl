@@ -238,6 +238,7 @@
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map comint-mode-map)
     (define-key map (kbd "C-x C-e") #'clojure-repl-eval-sexp)
+    (define-key map (kbd "C-c C-n") #'clojure-repl-eval-newline)
     (define-key map (kbd "C-c C-l t") #'clojure-repl-load-repl)
     (define-key map (kbd "C-c C-v") #'clojure-repl-show-var-doc)
     (define-key map (kbd "C-c C-s") #'clojure-repl-show-var-source)
@@ -248,6 +249,7 @@
       "Clojure REPL Menu"
       '("Clojure-Repl"
         ["Eval sexp" clojure-repl-eval-sexp t]
+        ["Eval newline" clojure-repl-eval-newline t]
         "--"
         ["Load repl" clojure-repl-load-repl t]
         "--"
@@ -268,13 +270,13 @@
     (define-key map (kbd "C-c C-p") #'clojure-repl-pprint-sexp)
     (define-key map (kbd "C-c C-b") #'clojure-repl-eval-buffer)
     (define-key map (kbd "C-c C-r") #'clojure-repl-eval-region)
+    (define-key map (kbd "C-c C-n") #'clojure-repl-eval-newline)
     (define-key map (kbd "C-c C-o") #'clojure-repl-clear-repl-buffer)
     
     (define-key map (kbd "C-c C-z") #'clojure-repl-switch-to-repl)
     (define-key map (kbd "C-c C-q") #'clojure-repl-quit)    
 
-    (define-key map (kbd "C-c C-n") #'clojure-repl-switch-ns)
-
+    (define-key map (kbd "C-c C-l n") #'clojure-repl-switch-ns)
     ;; quick shortcut for reload current namespace
     (define-key map (kbd "C-c C-k") #'clojure-repl-reload)
     (define-key map (kbd "C-c C-l f") #'clojure-repl-load-file)
@@ -301,6 +303,7 @@
         ["Pretty print sexp" clojure-repl-pprint-sexp t]
         ["Eval region" clojure-repl-eval-region t]
         ["Eval buffer" clojure-repl-eval-buffer t]
+        ["Eval newline" clojure-repl-eval-newline t]
         "--"
         ["Load file" clojure-repl-load-file t]
         ["Switch namespace" clojure-repl-switch-ns t]
@@ -543,6 +546,11 @@ process buffer for a list of commands.)"
    (queryp (clojure-repl--eval-text-as-query proc text))
    (t (clojure-repl--eval-text-silently proc text))))
 
+(defun clojure-repl-eval-newline ()
+  "Execute defun."
+  (interactive)
+  (comint-send-string (clojure-repl--repl-process) "\n")
+  )
 
 (defun clojure-repl--eval-thing (thing queryp)
   "Eval things such as `sexp', `defun', `region', `buffer'"
