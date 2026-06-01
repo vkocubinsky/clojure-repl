@@ -385,13 +385,18 @@ See command `clojure-repl-minor-mode'."
   :type 'regexp)
 
 
+(defcustom clojure-repl-filter-auto t
+  "Filter output from in-ns, load, load-repl")
+
 (defun clojure-repl-preoutput-filter (str)
   "Filter clojure-repl command"
   ;;(message "got: '%s'" str)
-  (let ((newstr (replace-regexp-in-string ":clojure-repl/\\(in-ns\\|load\\|load-repl\\)\n[^=> ]+=> " "" str)))
-        ;;(message "translate: '%s'" newstr)
-        newstr
-        ))
+  (if clojure-repl-filter-auto
+    (let ((newstr (replace-regexp-in-string ":clojure-repl/\\(in-ns\\|load\\|load-repl\\)\n[^=> ]+=> " "" str)))
+      ;;(message "translate: '%s'" newstr)
+      newstr
+      )
+    str))
 
 (define-derived-mode clojure-repl-mode comint-mode "Clojure Repl"
   "Major mode for run Clojure.
@@ -559,19 +564,19 @@ process buffer for a list of commands.)"
   "Execute repl load command.
    See variable `clojure-repl-load-command' and variable"
   (interactive)
-  (clojure-repl--eval-command-with-ns clojure-repl-load-command t nil))
+  (clojure-repl--eval-command-with-ns clojure-repl-load-command t (not clojure-repl-filter-auto)))
 
 (defun clojure-repl-switch-ns ()
   "Execute switch ns command.
    See variable `clojure-repl-switch-ns-command'."
   (interactive)
-  (clojure-repl--eval-command-with-ns clojure-repl-switch-ns-command t nil))
+  (clojure-repl--eval-command-with-ns clojure-repl-switch-ns-command t (not clojure-repl-filter-auto)))
 
 (defun clojure-repl-load-repl ()
   "Execute load repl command.
    See variables `clojure-repl-load-repl-command'"
   (interactive)
-  (clojure-repl--eval-text (clojure-repl--repl-process) clojure-repl-load-repl-command t nil))
+  (clojure-repl--eval-text (clojure-repl--repl-process) clojure-repl-load-repl-command t (not clojure-repl-filter-auto)))
 
 (defun clojure-repl--auto-load ()
   (when (derived-mode-p 'clojure-mode)
