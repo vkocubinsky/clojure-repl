@@ -4,7 +4,7 @@
 
 ;; Author: Valery Kocubinsky
 ;; URL: https://github.com/vkocubinsky/clojure-repl
-;; Version: 0.1.0
+;; Version: 0.2.0
 ;; Package-Requires: ((emacs "30.1") (clojure-mode "5.23.0"))
 ;; Keywords: clojure, languages, processes, lisp
 
@@ -385,18 +385,6 @@ See command `clojure-repl-minor-mode'."
   :type 'regexp)
 
 
-(defcustom clojure-repl-filter-auto t
-  "Filter output from in-ns, load, load-repl")
-
-(defun clojure-repl-preoutput-filter (str)
-  "Filter clojure-repl command"
-  ;;(message "got: '%s'" str)
-  (if clojure-repl-filter-auto
-    (let ((newstr (replace-regexp-in-string ":clojure-repl/\\(in-ns\\|load\\|load-repl\\)\n[^=> ]+=> " "" str)))
-      ;;(message "translate: '%s'" newstr)
-      newstr
-      )
-    str))
 
 (define-derived-mode clojure-repl-mode comint-mode "Clojure Repl"
   "Major mode for run Clojure.
@@ -522,12 +510,11 @@ process buffer for a list of commands.)"
   (comint-send-string proc (clojure-repl--normalize-input text))
   (display-buffer (clojure-repl--repl-buffer)))
 
-(defun clojure-repl--eval-text (proc text query-p newline-p)
-  (when newline-p
-    (with-current-buffer (process-buffer (clojure-repl--repl-process))
+(defun clojure-repl--eval-text (proc text query-p)
+  (with-current-buffer (process-buffer (clojure-repl--repl-process))
       (comint-goto-process-mark)
       (insert "\n")
-      (comint-set-process-mark)))
+      (comint-set-process-mark))
   (if query-p (clojure-repl--eval-text-as-query proc text)
     (clojure-repl--eval-text-silently proc text)))
 
@@ -537,46 +524,46 @@ process buffer for a list of commands.)"
   (comint-send-string (clojure-repl--repl-process) "\n")
   )
 
-(defun clojure-repl--eval-thing (thing query-p newline-p)
+(defun clojure-repl--eval-thing (thing query-p)
   "Eval things such as `sexp', `defun', `region', `buffer'"
   (let ((text (thing-at-point thing t)))
     (unless text
       (user-error (format "No %s found at point" thing)))
-    (clojure-repl--eval-text (clojure-repl--repl-process) text query-p newline-p)))
+    (clojure-repl--eval-text (clojure-repl--repl-process) text query-p)))
 
-(defun clojure-repl--eval-command-with-ns (command query-p newline-p)
+(defun clojure-repl--eval-command-with-ns (command query-p)
   "Execute command template which accept namespace as an argument."
   (let* ((proc (clojure-repl--repl-process))
          (ns (clojure-find-ns)))
     (unless ns
       (user-error "No namespace found in current buffer"))
-    (clojure-repl--eval-text proc (format command ns) query-p newline-p)))
+    (clojure-repl--eval-text proc (format command ns) query-p)))
 
-(defun clojure-repl--eval-command-with-thing (command thing query-p newline-p)
+(defun clojure-repl--eval-command-with-thing (command thing query-p)
   "Execute command template which accept things such
    as 'symbol, 'sexp as argument ."
   (let* ((text (thing-at-point thing t)))
     (unless text
       (user-error (format "No %s found at point" thing)))
-    (clojure-repl--eval-text (clojure-repl--repl-process) (format command text) query-p newline-p)))
+    (clojure-repl--eval-text (clojure-repl--repl-process) (format command text) query-p)))
 
 (defun clojure-repl-load ()
   "Execute repl load command.
    See variable `clojure-repl-load-command' and variable"
   (interactive)
-  (clojure-repl--eval-command-with-ns clojure-repl-load-command t (not clojure-repl-filter-auto)))
+  (clojure-repl--eval-command-with-ns clojure-repl-load-command t))
 
 (defun clojure-repl-switch-ns ()
   "Execute switch ns command.
    See variable `clojure-repl-switch-ns-command'."
   (interactive)
-  (clojure-repl--eval-command-with-ns clojure-repl-switch-ns-command t (not clojure-repl-filter-auto)))
+  (clojure-repl--eval-command-with-ns clojure-repl-switch-ns-command t))
 
 (defun clojure-repl-load-repl ()
   "Execute load repl command.
    See variables `clojure-repl-load-repl-command'"
   (interactive)
-  (clojure-repl--eval-text (clojure-repl--repl-process) clojure-repl-load-repl-command t (not clojure-repl-filter-auto)))
+  (clojure-repl--eval-text (clojure-repl--repl-process) clojure-repl-load-repl-command t))
 
 (defun clojure-repl--auto-load ()
   (when (derived-mode-p 'clojure-mode)
