@@ -105,7 +105,12 @@
 
 
 (defvar clojure-repl-load-command
-  "(do (clojure.core/require '%s) :clojure-repl/load)"
+  "(try
+    (do
+      (clojure.core/require '%s)
+      [:clojure-repl/load :success ])
+    (catch Exception e [:clojure-repl/load :fail (.getMessage e)])
+    )"
   "Clojure load form with namespace parameter.")
 
 (defvar clojure-repl-switch-ns-command
@@ -113,11 +118,14 @@
   "Clojure switch namespace form with namespace name parameter.")
 
 (defvar clojure-repl-load-repl-command
-  "(do
-     (when-not (= *ns* (find-ns 'user))
-       (require 'clojure.main)
-       (apply require clojure.main/repl-requires))
-     :clojure-repl/load-repl)"
+  "(try
+     (do 
+       (when-not (= *ns* (find-ns 'user))
+         (require 'clojure.main)
+         (apply require clojure.main/repl-requires))
+       [:clojure-repl/load-repl :success])
+     (catch Exception e [:clojure-repl/load-load :fail (.getMessage e)])
+     )"
   "Clojure load repl form.")
 
 (defvar clojure-repl-load-file-command
@@ -563,6 +571,7 @@ process buffer for a list of commands.)"
    See variables `clojure-repl-load-repl-command'"
   (interactive)
   (clojure-repl--eval-text (clojure-repl--repl-process) clojure-repl-load-repl-command t))
+
 
 (defun clojure-repl--auto-load ()
   (when (derived-mode-p 'clojure-mode)
