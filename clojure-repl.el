@@ -583,7 +583,7 @@ process buffer for a list of commands.)"
 
 
 (defun clojure-repl--auto-load ()
-  (when (or clojure-repl-auto-load (derived-mode-p 'clojure-mode))
+  (when (and clojure-repl-auto-load (derived-mode-p 'clojure-mode))
     (save-excursion (let* ((proc (clojure-repl--repl-process))
            (ns (clojure-find-ns)))
       (unless ns
