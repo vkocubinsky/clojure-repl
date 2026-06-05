@@ -4,7 +4,7 @@
 
 ;; Author: Valery Kocubinsky
 ;; URL: https://github.com/vkocubinsky/clojure-repl
-;; Version: 0.1.0
+;; Version: 0.2.0
 ;; Package-Requires: ((emacs "30.1") (clojure-mode "5.23.0"))
 ;; Keywords: clojure, languages, processes, lisp
 
@@ -60,7 +60,7 @@
 
 
 
-(defcustom clojure-repl-auto-load-repl t
+(defcustom clojure-repl-auto-repl t
   "Automatically load repl functions, like user namespace do."
   :type 'boolean
   :safe 'booleanp
@@ -72,40 +72,54 @@
   :safe 'booleanp
   )
 
-(defcustom clojure-repl-auto-switch-ns t
-  "Automatically switch to current namespace."
-  :type 'boolean
-  :safe 'booleanp
+
+(defun clojure-repl-auto-load-enable ()
+  "Enable auto load
+   See:
+   `clojure-repl-auto-load'
+   "
+  (interactive)
+  (setq clojure-repl-auto-load t))
+
+
+(defun clojure-repl-auto-load-disable ()
+  "Enable auto load
+   See:
+   `clojure-repl-auto-load'
+   "
+  (interactive)
+  (setq clojure-repl-auto-load nil))
+
+
+(defvar clojure-repl-auto-load-command
+  "
+  (let [target-ns '%s
+        install-repl? %s]
+    (if (or (= target-ns 'user) (= target-ns (ns-name *ns*)))
+      [:clojure-repl/auto :skip]
+      (try
+        (do
+          (in-ns 'user)
+          (clojure.core/require target-ns)
+          (in-ns target-ns)
+          (when install-repl?
+            (require 'clojure.main)
+            (apply require clojure.main/repl-requires))
+          [:clojure-repl/auto :success])
+        (catch Exception e
+          (in-ns 'user)
+          [:clojure-repl/auto :fail (.getMessage e)]))))"
+  "Clojure auto command"
+
   )
 
-(defun clojure-repl-auto-enable-all ()
-  "Enable all auto variables.
-   See:
-   `clojure-repl-auto-load'
-   `clojure-repl-auto-load-repl'
-   `clojure-repl-auto-switch-ns'
-   "
-  (interactive)
-  (setq clojure-repl-auto-load t
-        clojure-repl-auto-load-repl t
-        clojure-repl-auto-switch-ns t))
-
-
-(defun clojure-repl-auto-disable-all ()
-  "Enable all auto variables.
-   See:
-   `clojure-repl-auto-load'
-   `clojure-repl-auto-load-repl'
-   `clojure-repl-auto-switch-ns'
-   "
-  (interactive)
-  (setq clojure-repl-auto-load nil
-        clojure-repl-auto-load-repl nil
-        clojure-repl-auto-switch-ns nil))
-
-
 (defvar clojure-repl-load-command
-  "(do (clojure.core/require '%s) :clojure-repl/load)"
+  "(try
+    (do
+      (clojure.core/require '%s)
+      [:clojure-repl/load :success ])
+    (catch Exception e [:clojure-repl/load :fail (.getMessage e)])
+    )"
   "Clojure load form with namespace parameter.")
 
 (defvar clojure-repl-switch-ns-command
@@ -113,11 +127,14 @@
   "Clojure switch namespace form with namespace name parameter.")
 
 (defvar clojure-repl-load-repl-command
-  "(do
-     (when-not (= *ns* (find-ns 'user))
-       (require 'clojure.main)
-       (apply require clojure.main/repl-requires))
-     :clojure-repl/load-repl)"
+  "(try
+     (do 
+       (when-not (= *ns* (find-ns 'user))
+         (require 'clojure.main)
+         (apply require clojure.main/repl-requires))
+       [:clojure-repl/load-repl :success])
+     (catch Exception e [:clojure-repl/load-load :fail (.getMessage e)])
+     )"
   "Clojure load repl form.")
 
 (defvar clojure-repl-load-file-command
@@ -305,8 +322,8 @@
         ["Test namespace" clojure-repl-run-ns-tests t]
         ["Test function" clojure-repl-run-test t]
         "--"
-        ["Disable all auto load" clojure-repl-auto-disable-all]
-        ["Enable all auto load" clojure-repl-auto-enable-all]
+        ["Disable auto load" clojure-repl-auto-load-disable]
+        ["Enable auto load" clojure-repl-auto-load-enable]
         "--"
         ["Switch to REPL" clojure-repl-switch-to-repl t]
         ["Clear REPL" clojure-repl-clear-repl-buffer]
@@ -385,18 +402,6 @@ See command `clojure-repl-minor-mode'."
   :type 'regexp)
 
 
-(defcustom clojure-repl-filter-auto t
-  "Filter output from in-ns, load, load-repl")
-
-(defun clojure-repl-preoutput-filter (str)
-  "Filter clojure-repl command"
-  ;;(message "got: '%s'" str)
-  (if clojure-repl-filter-auto
-    (let ((newstr (replace-regexp-in-string ":clojure-repl/\\(in-ns\\|load\\|load-repl\\)\n[^=> ]+=> " "" str)))
-      ;;(message "translate: '%s'" newstr)
-      newstr
-      )
-    str))
 
 (define-derived-mode clojure-repl-mode comint-mode "Clojure Repl"
   "Major mode for run Clojure.
@@ -405,7 +410,6 @@ See command `clojure-repl-minor-mode'."
 
 "
   ;;(setq-local comint-process-echoes t)
-  (add-hook 'comint-preoutput-filter-functions #'clojure-repl-preoutput-filter nil t)
   (setq-local comint-use-prompt-regexp t)
   (setq-local comint-prompt-regexp clojure-repl-comint-prompt-regexp)
   (setq-local comint-prompt-read-only t)
@@ -522,12 +526,11 @@ process buffer for a list of commands.)"
   (comint-send-string proc (clojure-repl--normalize-input text))
   (display-buffer (clojure-repl--repl-buffer)))
 
-(defun clojure-repl--eval-text (proc text query-p newline-p)
-  (when newline-p
-    (with-current-buffer (process-buffer (clojure-repl--repl-process))
+(defun clojure-repl--eval-text (proc text query-p)
+  (with-current-buffer (process-buffer (clojure-repl--repl-process))
       (comint-goto-process-mark)
       (insert "\n")
-      (comint-set-process-mark)))
+      (comint-set-process-mark))
   (if query-p (clojure-repl--eval-text-as-query proc text)
     (clojure-repl--eval-text-silently proc text)))
 
@@ -537,85 +540,86 @@ process buffer for a list of commands.)"
   (comint-send-string (clojure-repl--repl-process) "\n")
   )
 
-(defun clojure-repl--eval-thing (thing query-p newline-p)
+(defun clojure-repl--eval-thing (thing query-p)
   "Eval things such as `sexp', `defun', `region', `buffer'"
   (let ((text (thing-at-point thing t)))
     (unless text
       (user-error (format "No %s found at point" thing)))
-    (clojure-repl--eval-text (clojure-repl--repl-process) text query-p newline-p)))
+    (clojure-repl--eval-text (clojure-repl--repl-process) text query-p)))
 
-(defun clojure-repl--eval-command-with-ns (command query-p newline-p)
+(defun clojure-repl--eval-command-with-ns (command query-p)
   "Execute command template which accept namespace as an argument."
   (let* ((proc (clojure-repl--repl-process))
          (ns (clojure-find-ns)))
     (unless ns
       (user-error "No namespace found in current buffer"))
-    (clojure-repl--eval-text proc (format command ns) query-p newline-p)))
+    (clojure-repl--eval-text proc (format command ns) query-p)))
 
-(defun clojure-repl--eval-command-with-thing (command thing query-p newline-p)
+(defun clojure-repl--eval-command-with-thing (command thing query-p)
   "Execute command template which accept things such
    as 'symbol, 'sexp as argument ."
   (let* ((text (thing-at-point thing t)))
     (unless text
       (user-error (format "No %s found at point" thing)))
-    (clojure-repl--eval-text (clojure-repl--repl-process) (format command text) query-p newline-p)))
+    (clojure-repl--eval-text (clojure-repl--repl-process) (format command text) query-p)))
 
 (defun clojure-repl-load ()
   "Execute repl load command.
    See variable `clojure-repl-load-command' and variable"
   (interactive)
-  (clojure-repl--eval-command-with-ns clojure-repl-load-command t (not clojure-repl-filter-auto)))
+  (clojure-repl--eval-command-with-ns clojure-repl-load-command t))
 
 (defun clojure-repl-switch-ns ()
   "Execute switch ns command.
    See variable `clojure-repl-switch-ns-command'."
   (interactive)
-  (clojure-repl--eval-command-with-ns clojure-repl-switch-ns-command t (not clojure-repl-filter-auto)))
+  (clojure-repl--eval-command-with-ns clojure-repl-switch-ns-command t))
 
 (defun clojure-repl-load-repl ()
   "Execute load repl command.
    See variables `clojure-repl-load-repl-command'"
   (interactive)
-  (clojure-repl--eval-text (clojure-repl--repl-process) clojure-repl-load-repl-command t (not clojure-repl-filter-auto)))
+  (clojure-repl--eval-text (clojure-repl--repl-process) clojure-repl-load-repl-command t))
+
 
 (defun clojure-repl--auto-load ()
-  (when (derived-mode-p 'clojure-mode)
-      (when clojure-repl-auto-load
-        (save-excursion (clojure-repl-load)))
-      (when clojure-repl-auto-switch-ns
-        (save-excursion (clojure-repl-switch-ns)))
-      (when clojure-repl-auto-load-repl
-        (save-excursion (clojure-repl-load-repl)))))
+  (when (and clojure-repl-auto-load (derived-mode-p 'clojure-mode))
+    (save-excursion (let* ((proc (clojure-repl--repl-process))
+           (ns (clojure-find-ns)))
+      (unless ns
+        (user-error "No namespace found in current buffer"))
+      (clojure-repl--eval-text proc (format clojure-repl-auto-load-command ns (if clojure-repl-auto-repl "true" "false")) t)))
+))
 
 (defun clojure-repl-eval-region ()
   "Execute region."
   (interactive)
   (clojure-repl--auto-load)
-  (clojure-repl--eval-thing 'region nil t))
+  (clojure-repl--eval-thing 'region nil))
 
 (defun clojure-repl-eval-defun ()
   "Execute defun."
   (interactive)
   (clojure-repl--auto-load)
-  (clojure-repl--eval-thing 'defun nil t))
+  (clojure-repl--eval-thing 'defun nil))
 
 (defun clojure-repl-eval-paragraph ()
   "Execute defun."
   (interactive)
   (clojure-repl--auto-load)
-  (clojure-repl--eval-thing 'paragraph nil t))
+  (clojure-repl--eval-thing 'paragraph nil))
 
 (defun clojure-repl-eval-buffer ()
   "Execute buffer."
   (interactive)
   (clojure-repl--auto-load)
-  (clojure-repl--eval-thing 'buffer nil t))
+  (clojure-repl--eval-thing 'buffer nil))
 
 (defun clojure-repl-eval-sexp ()
   "Execute sexp."
   (interactive)
   (clojure-repl--auto-load)
-  (clojure-repl--eval-thing 'sexp nil t))
+  (clojure-repl--eval-thing 'sexp nil))
 
 (defun clojure-repl-load-file ()
   "Load current clojure file into the inferior Clojure process."
@@ -623,54 +627,54 @@ process buffer for a list of commands.)"
   (let* ((proc (clojure-repl--repl-process))
          (file-name (buffer-file-name)))
     (if (and (derived-mode-p 'clojure-mode) file-name)
-        (clojure-repl--eval-text proc (format clojure-repl-load-file-command file-name) t t)
+        (clojure-repl--eval-text proc (format clojure-repl-load-file-command file-name) t)
       (user-error "Current buffer file is not clojure or doesn't exists."))))
 
 (defun clojure-repl-reload ()
   "Execute repl reload command.
    See variable `clojure-repl-reload-command' and variable"
   (interactive)
-  (clojure-repl--eval-command-with-ns clojure-repl-reload-command t nil))
+  (clojure-repl--eval-command-with-ns clojure-repl-reload-command t))
 
 (defun clojure-repl-reload-all ()
   "Execute reload all command.
    See variable `clojure-repl-reload-all-command' and variable"
   (interactive)
-  (clojure-repl--eval-command-with-ns clojure-repl-reload-all-command t nil))
+  (clojure-repl--eval-command-with-ns clojure-repl-reload-all-command t))
 
 (defun clojure-repl-show-var-doc ()
   "Execute doc command.
    See variable `clojure-repl-doc-command'."
   (interactive)
   (clojure-repl--auto-load)
-  (clojure-repl--eval-command-with-thing clojure-repl-doc-command 'symbol t t))
+  (clojure-repl--eval-command-with-thing clojure-repl-doc-command 'symbol t))
 
 (defun clojure-repl-show-var-source ()
   "Execute source command.
    See variable `clojure-repl-var-source-form'."
   (interactive)
   (clojure-repl--auto-load)
-  (clojure-repl--eval-command-with-thing clojure-repl-source-command 'symbol t t))
+  (clojure-repl--eval-command-with-thing clojure-repl-source-command 'symbol t))
 
 (defun clojure-repl-show-pst ()
   "Execute print stack trace command.
    See variable `clojure-repl-pst-command'."
   (interactive)
-  (clojure-repl--eval-command-with-ns clojure-repl-pst-command t t))
+  (clojure-repl--eval-command-with-ns clojure-repl-pst-command t))
 
 (defun clojure-repl-run-all-tests ()
   "Execute test all namespaces command.
    See variable `clojure-repl-run-all-tests-command'"
   (interactive)
   (clojure-repl--auto-load)
-  (clojure-repl--eval-text (clojure-repl--repl-process) clojure-repl-run-all-tests-command nil t))
+  (clojure-repl--eval-text (clojure-repl--repl-process) clojure-repl-run-all-tests-command nil))
 
 (defun clojure-repl-run-ns-tests ()
   "Excute test current namespace command.
    See variable `clojure-repl-run-ns-tests-command'"
   (interactive)
   (clojure-repl--auto-load)
-  (clojure-repl--eval-text (clojure-repl--repl-process) clojure-repl-run-ns-tests-command nil t))
+  (clojure-repl--eval-text (clojure-repl--repl-process) clojure-repl-run-ns-tests-command nil))
 
 (defun clojure-repl-run-test ()
   "Execute current test command.
@@ -678,13 +682,13 @@ process buffer for a list of commands.)"
   (interactive)
   (clojure-repl--auto-load)
   (when-let ((defun-name (clojure-current-defun-name)))
-    (clojure-repl--eval-text (clojure-repl--repl-process) (format clojure-repl-run-test-command defun-name nil t))))
+    (clojure-repl--eval-text (clojure-repl--repl-process) (format clojure-repl-run-test-command defun-name nil))))
 
 (defun clojure-repl-pprint-sexp ()
   "Execute sexp at point as pretty print."
   (interactive)
   (clojure-repl--auto-load)
-  (clojure-repl--eval-command-with-thing clojure-repl-pprint-command 'sexp nil t))
+  (clojure-repl--eval-command-with-thing clojure-repl-pprint-command 'sexp nil))
 
 (defun clojure-repl-macroexpand (&optional macro-1)
   "Execute macro expansion command.
@@ -696,14 +700,14 @@ process buffer for a list of commands.)"
   (let* ((macroexpand-form (if macro-1
                                clojure-repl-macroexpand-1-command
                              clojure-repl-macroexpand-command)))
-    (clojure-repl--eval-command-with-thing macroexpand-form 'sexp t nil)))
+    (clojure-repl--eval-command-with-thing macroexpand-form 'sexp t)))
 
 (defun clojure-repl-javadoc ()
   "Execute javadoc command.
    See variable `clojure-repl-javadoc-command'."
   (interactive)
   (clojure-repl--auto-load)
-  (clojure-repl--eval-command-with-thing clojure-repl-javadoc-command 'symbol t t))
+  (clojure-repl--eval-command-with-thing clojure-repl-javadoc-command 'symbol t))
 
 (provide 'clojure-repl)
 
