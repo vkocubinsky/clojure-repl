@@ -60,7 +60,7 @@
 
 
 
-(defcustom clojure-repl-auto-load-repl t
+(defcustom clojure-repl-auto-repl t
   "Automatically load repl functions, like user namespace do."
   :type 'boolean
   :safe 'booleanp
@@ -72,37 +72,46 @@
   :safe 'booleanp
   )
 
-(defcustom clojure-repl-auto-switch-ns t
-  "Automatically switch to current namespace."
-  :type 'boolean
-  :safe 'booleanp
+
+(defun clojure-repl-auto-load-enable ()
+  "Enable auto load
+   See:
+   `clojure-repl-auto-load'
+   "
+  (interactive)
+  (setq clojure-repl-auto-load t))
+
+
+(defun clojure-repl-auto-load-disable ()
+  "Enable auto load
+   See:
+   `clojure-repl-auto-load'
+   "
+  (interactive)
+  (setq clojure-repl-auto-load nil))
+
+
+(defvar clojure-repl-auto-load-command
+  "
+  (let [target-ns '%s
+        install-repl? %s]
+    (if (or (= target-ns 'user) (= target-ns (ns-name *ns*)))
+      [:clojure-repl/auto :skip]
+      (try
+        (do
+          (in-ns 'user)
+          (clojure.core/require target-ns)
+          (in-ns target-ns)
+          (when install-repl?
+            (require 'clojure.main)
+            (apply require clojure.main/repl-requires))
+          [:clojure-repl/auto :success])
+        (catch Exception e
+          (in-ns 'user)
+          [:clojure-repl/auto :fail (.getMessage e)]))))"
+  "Clojure auto command"
+
   )
-
-(defun clojure-repl-auto-enable-all ()
-  "Enable all auto variables.
-   See:
-   `clojure-repl-auto-load'
-   `clojure-repl-auto-load-repl'
-   `clojure-repl-auto-switch-ns'
-   "
-  (interactive)
-  (setq clojure-repl-auto-load t
-        clojure-repl-auto-load-repl t
-        clojure-repl-auto-switch-ns t))
-
-
-(defun clojure-repl-auto-disable-all ()
-  "Enable all auto variables.
-   See:
-   `clojure-repl-auto-load'
-   `clojure-repl-auto-load-repl'
-   `clojure-repl-auto-switch-ns'
-   "
-  (interactive)
-  (setq clojure-repl-auto-load nil
-        clojure-repl-auto-load-repl nil
-        clojure-repl-auto-switch-ns nil))
-
 
 (defvar clojure-repl-load-command
   "(try
@@ -313,8 +322,8 @@
         ["Test namespace" clojure-repl-run-ns-tests t]
         ["Test function" clojure-repl-run-test t]
         "--"
-        ["Disable all auto load" clojure-repl-auto-disable-all]
-        ["Enable all auto load" clojure-repl-auto-enable-all]
+        ["Disable auto load" clojure-repl-auto-load-disable]
+        ["Enable auto load" clojure-repl-auto-load-enable]
         "--"
         ["Switch to REPL" clojure-repl-switch-to-repl t]
         ["Clear REPL" clojure-repl-clear-repl-buffer]
@@ -574,13 +583,13 @@ process buffer for a list of commands.)"
 
 
 (defun clojure-repl--auto-load ()
-  (when (derived-mode-p 'clojure-mode)
-      (when clojure-repl-auto-load
-        (save-excursion (clojure-repl-load)))
-      (when clojure-repl-auto-switch-ns
-        (save-excursion (clojure-repl-switch-ns)))
-      (when clojure-repl-auto-load-repl
-        (save-excursion (clojure-repl-load-repl)))))
+  (when (or clojure-repl-auto-load (derived-mode-p 'clojure-mode))
+    (save-excursion (let* ((proc (clojure-repl--repl-process))
+           (ns (clojure-find-ns)))
+      (unless ns
+        (user-error "No namespace found in current buffer"))
+      (clojure-repl--eval-text proc (format clojure-repl-auto-load-command ns (if clojure-repl-auto-repl "true" "false")) t)))
+))
 
 (defun clojure-repl-eval-region ()
   "Execute region."
