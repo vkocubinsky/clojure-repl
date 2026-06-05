@@ -98,14 +98,13 @@
     (if (or (= target-ns 'user) (= target-ns (ns-name *ns*)))
       [:clojure-repl/auto :skip]
       (try
-        (do
-          (in-ns 'user)
-          (clojure.core/require target-ns)
-          (in-ns target-ns)
-          (when install-repl?
-            (require 'clojure.main)
-            (apply require clojure.main/repl-requires))
-          [:clojure-repl/auto :success])
+        (in-ns 'user)
+        (clojure.core/require target-ns)
+        (in-ns target-ns)
+        (when install-repl?
+          (require 'clojure.main)
+          (apply require clojure.main/repl-requires))
+        [:clojure-repl/auto :success]
         (catch Exception e
           (in-ns 'user)
           [:clojure-repl/auto :fail (.getMessage e)]))))"
@@ -115,42 +114,62 @@
 
 (defvar clojure-repl-load-command
   "(try
-    (do
-      (clojure.core/require '%s)
-      [:clojure-repl/load :success ])
-    (catch Exception e [:clojure-repl/load :fail (.getMessage e)])
-    )"
+     (clojure.core/require '%s)
+     [:clojure-repl/load :success]
+     (catch Exception e [:clojure-repl/load :fail (.getMessage e)]))"
   "Clojure load form with namespace parameter.")
 
 (defvar clojure-repl-switch-ns-command
-  "(do (in-ns '%s) :clojure-repl/in-ns)"
+  "(do (in-ns '%s)
+       [:clojure-repl/in-ns :success])"
   "Clojure switch namespace form with namespace name parameter.")
 
 (defvar clojure-repl-load-repl-command
   "(try
-     (do 
-       (when-not (= *ns* (find-ns 'user))
-         (require 'clojure.main)
-         (apply require clojure.main/repl-requires))
-       [:clojure-repl/load-repl :success])
-     (catch Exception e [:clojure-repl/load-load :fail (.getMessage e)])
-     )"
+     (when-not (= (ns-name *ns*) 'user)
+       (require 'clojure.main)
+       (apply require clojure.main/repl-requires))
+     [:clojure-repl/load-repl :success]
+     (catch Exception e [:clojure-repl/load-load :fail (.getMessage e)]))"
   "Clojure load repl form.")
 
 (defvar clojure-repl-load-file-command
-  "(do (clojure.core/load-file \"%s\") :clojure-repl/load-file)"
+  "(try
+     (clojure.core/load-file \"%s\")
+     [:clojure-repl/load-file :success]
+     (catch Exception e [:clojure-repl/load-file :fail (.getMessage e)]))"
   "Clojure load file form with namespace name parameter.")
 
+(defvar clojure-repl-reload-command
+  "(try
+     (clojure.core/require '%s :reload)
+     [:clojure-repl/reload :success]
+     (catch Exception e [:clojure-repl/load-file :fail (.getMessage e)]))"
+  "Clojure reload form with namespace name parameter.")
+
+(defvar clojure-repl-reload-all-command
+  "(try
+     (clojure.core/require '%s :reload-all)
+     [:clojure-repl/reload-all]
+     (catch Exception e [:clojure-repl/load-file :fail (.getMessage e)]))"
+  "Clojure reload all form with namespace name parameter.")
+
 (defvar clojure-repl-doc-command
-  "(do (clojure.repl/doc %s) :clojure-repl/doc)"
+  "(do
+      (clojure.repl/doc %s)
+      [:clojure-repl/doc :success])"
   "Clojure doc form with var or special form name parameter.")
 
 (defvar clojure-repl-source-command
-  "(do (clojure.repl/source %s) :clojure-repl/source)"
+  "(do
+     (clojure.repl/source %s)
+     [:clojure-repl/source :success])"
   "Clojure source form with var or special form name parameter.")
 
 (defvar clojure-repl-pst-command
-  "(do (clojure.repl/pst) :clojure-repl/pst)"
+  "(do
+     (clojure.repl/pst)
+     [:clojure-repl/pst :success])"
   "Clojure print stack trace form.")
 
 (defvar clojure-repl-macroexpand-command
@@ -161,18 +180,11 @@
   "(clojure.core/macroexpand-1 '%s)"
   "Clojure macroexpand-1 form with form text parameter.")
 
-(defvar clojure-repl-reload-command
-  "(do (clojure.core/require '%s :reload) :clojure-repl/reload)"
-  "Clojure reload form with namespace name parameter.")
-
-(defvar clojure-repl-reload-all-command
-  "(do (clojure.core/require '%s :reload-all) :clojure-repl/reload-all)"
-  "Clojure reload all form with namespace name parameter.")
 
 (defvar clojure-repl-pprint-command
   "(do (clojure.core/require 'clojure.pprint)
       (clojure.pprint/pprint %s)
-      :clojure-repl/pprint
+      [:clojure-repl/pprint :success]
       )"
   "Clojure pretty print form with form text parameter.")
 
@@ -180,28 +192,28 @@
   "(do
       (clojure.core/require 'clojure.java.javadoc)
       (clojure.java.javadoc/javadoc %s)
-      :clojure-repl/javadoc)"
+      [:clojure-repl/javadoc :success])"
   "Clojure javadoc form with class or object parameter.")
 
 (defvar clojure-repl-run-all-tests-command
   "(do
       (clojure.core/require 'clojure.test)
       (clojure.test/run-all-tests)
-      :clojure-repl/run-all-tests)"
+      [:clojure-repl/run-all-tests :success])"
   "Clojure run all tests form")
 
 (defvar clojure-repl-run-ns-tests-command
   "(do
       (clojure.core/require 'clojure.test)
       (clojure.test/run-tests)
-      :clojure-repl/run-ns-tests)"
+      [:clojure-repl/run-ns-tests :success])"
   "Clojure run current namespace tests form.")
 
 (defvar clojure-repl-run-test-command
   "(do
       (clojure.core/require 'clojure.test)
       (clojure.test/run-test %s)
-      :clojure-repl/run-test)"
+      [:clojure-repl/run-test :success])"
   "Clojure run a test form with test name parameter.")
 
 (defun clojure-repl--process-buffer-name ()
