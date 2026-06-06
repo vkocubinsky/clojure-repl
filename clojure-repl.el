@@ -58,20 +58,19 @@
   :type 'string
   :safe 'stringp)
 
-
+(defcustom clojure-repl-auto-load t
+  "Automatically load and switch into current namespace."
+  :type 'boolean
+  :safe 'booleanp
+  )
 
 (defcustom clojure-repl-auto-repl t
-  "Automatically load repl functions, like user namespace do."
+  "Automatically load repl functions, like user namespace do.
+   See: `clojure-repl-auto-load'
+  "
   :type 'boolean
   :safe 'booleanp
   )
-
-(defcustom clojure-repl-auto-load t
-  "Automatically load current namespace."
-  :type 'boolean
-  :safe 'booleanp
-  )
-
 
 (defun clojure-repl-auto-load-enable ()
   "Enable auto load
@@ -596,11 +595,12 @@ process buffer for a list of commands.)"
 
 (defun clojure-repl--auto-load ()
   (when (and clojure-repl-auto-load (derived-mode-p 'clojure-mode))
-    (save-excursion (let* ((proc (clojure-repl--repl-process))
-           (ns (clojure-find-ns)))
-      (unless ns
-        (user-error "No namespace found in current buffer"))
-      (clojure-repl--eval-text proc (format clojure-repl-auto-load-command ns (if clojure-repl-auto-repl "true" "false")) t)))
+    (save-excursion
+     (let* ((proc (clojure-repl--repl-process))
+            (ns (clojure-find-ns)))
+       (unless ns
+         (user-error "No namespace found in current buffer"))
+       (clojure-repl--eval-text proc (format clojure-repl-auto-load-command ns (if clojure-repl-auto-repl "true" "false")) t)))
 ))
 
 (defun clojure-repl-eval-region ()
