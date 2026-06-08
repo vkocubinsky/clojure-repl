@@ -525,14 +525,11 @@ process buffer for a list of commands.)"
 (defun clojure-repl--normalize-input (text)
   (if (string-suffix-p "\n" text) text (concat text "\n")))
 
-
-
-
-(defun clojure-repl--eval-text-as-query (proc text)
+(defun clojure-repl--proc-query (proc text)
   "Eval text use comint-proc-query."
   (comint-proc-query proc (clojure-repl--normalize-input text)))
 
-(defun clojure-repl--eval-text-silently (proc text)
+(defun clojure-repl--send-string (proc text)
   "Eval text without echo"
   (with-current-buffer (process-buffer (clojure-repl--repl-process))
       (comint-goto-process-mark)
@@ -542,8 +539,8 @@ process buffer for a list of commands.)"
   (display-buffer (clojure-repl--repl-buffer)))
 
 (defun clojure-repl--eval-text (proc text query-p)
-  (if query-p (clojure-repl--eval-text-as-query proc text)
-    (clojure-repl--eval-text-silently proc text)))
+  (if query-p (clojure-repl--proc-query proc text)
+    (clojure-repl--send-string proc text)))
 
 (defun clojure-repl-eval-newline ()
   "Execute defun."
