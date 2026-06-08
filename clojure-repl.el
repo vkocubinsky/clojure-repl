@@ -534,14 +534,14 @@ process buffer for a list of commands.)"
 
 (defun clojure-repl--eval-text-silently (proc text)
   "Eval text without echo"
-  (comint-send-string proc (clojure-repl--normalize-input text))
-  (display-buffer (clojure-repl--repl-buffer)))
-
-(defun clojure-repl--eval-text (proc text query-p)
   (with-current-buffer (process-buffer (clojure-repl--repl-process))
       (comint-goto-process-mark)
       (insert "\n")
       (comint-set-process-mark))
+  (comint-send-string proc (clojure-repl--normalize-input text))
+  (display-buffer (clojure-repl--repl-buffer)))
+
+(defun clojure-repl--eval-text (proc text query-p)
   (if query-p (clojure-repl--eval-text-as-query proc text)
     (clojure-repl--eval-text-silently proc text)))
 
