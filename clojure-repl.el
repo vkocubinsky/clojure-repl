@@ -58,6 +58,12 @@
   :type 'string
   :safe 'stringp)
 
+(defcustom clojure-repl-smart-auto-load t
+  "Before auto load check does source buffer namespace equal to repl namespace."
+  :type 'boolean
+  :safe 'booleanp
+  )
+
 (defcustom clojure-repl-auto-load t
   "Automatically load and switch into current namespace."
   :type 'boolean
@@ -542,6 +548,23 @@ process buffer for a list of commands.)"
   (if query-p (clojure-repl--proc-query proc text)
     (clojure-repl--send-string proc text)))
 
+(defun clojure-repl--find-repl-ns ()
+  (save-excursion
+    (with-current-buffer (process-buffer (clojure-repl--repl-process))
+      (comint-goto-process-mark)
+      (let ((str (thing-at-point 'paragraph t)))
+        (when (re-search-backward "^\\([^=> \n]+\\)=> *" nil t)
+          (match-string-no-properties 1))
+        ))))
+
+(defun clojure-repl--the-same-ns-p ()
+  (let ((source-ns (clojure-find-ns))
+        (repl-ns (clojure-repl--find-repl-ns)))
+    (string= source-ns repl-ns)
+    )
+  )
+
+
 (defun clojure-repl-eval-newline ()
   "Execute defun."
   (interactive)
@@ -591,14 +614,15 @@ process buffer for a list of commands.)"
 
 
 (defun clojure-repl--auto-load ()
-  (when (and clojure-repl-auto-load (derived-mode-p 'clojure-mode))
-    (save-excursion
-     (let* ((proc (clojure-repl--repl-process))
-            (ns (clojure-find-ns)))
-       (unless ns
-         (user-error "No namespace found in current buffer"))
-       (clojure-repl--eval-text proc (format clojure-repl-auto-load-command ns (if clojure-repl-auto-repl "true" "false")) t)))
-))
+  (when (not (and (clojure-repl-smart-auto-load) (clojure-repl--the-same-ns-p)))
+    (when (and clojure-repl-auto-load (derived-mode-p 'clojure-mode))
+      (save-excursion
+        (let* ((proc (clojure-repl--repl-process))
+               (ns (clojure-find-ns)))
+          (unless ns
+            (user-error "No namespace found in current buffer"))
+          (clojure-repl--eval-text proc (format clojure-repl-auto-load-command ns (if clojure-repl-auto-repl "true" "false")) t)))
+)))
 
 (defun clojure-repl-eval-region ()
   "Execute region."
