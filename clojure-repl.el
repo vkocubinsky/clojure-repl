@@ -4,7 +4,7 @@
 
 ;; Author: Valery Kocubinsky
 ;; URL: https://github.com/vkocubinsky/clojure-repl
-;; Version: 0.2.0
+;; Version: 0.3.0
 ;; Package-Requires: ((emacs "30.1") (clojure-mode "5.23.0"))
 ;; Keywords: clojure, languages, processes, lisp
 
@@ -58,6 +58,12 @@
   :type 'string
   :safe 'stringp)
 
+(defcustom clojure-repl-smart-auto-load t
+  "Before auto load check does source buffer namespace equal to repl namespace."
+  :type 'boolean
+  :safe 'booleanp
+  )
+
 (defcustom clojure-repl-auto-load t
   "Automatically load and switch into current namespace."
   :type 'boolean
@@ -78,7 +84,8 @@
    `clojure-repl-auto-load'
    "
   (interactive)
-  (setq clojure-repl-auto-load t))
+  (setq clojure-repl-auto-load t
+        clojure-repl-smart-auto-load t))
 
 
 (defun clojure-repl-auto-load-disable ()
@@ -87,7 +94,8 @@
    `clojure-repl-auto-load'
    "
   (interactive)
-  (setq clojure-repl-auto-load nil))
+  (setq clojure-repl-auto-load nil
+        clojure-repl-smart-auto-load nil))
 
 
 (defvar clojure-repl-auto-load-command
@@ -525,25 +533,39 @@ process buffer for a list of commands.)"
 (defun clojure-repl--normalize-input (text)
   (if (string-suffix-p "\n" text) text (concat text "\n")))
 
-
-
-
-(defun clojure-repl--eval-text-as-query (proc text)
+(defun clojure-repl--proc-query (proc text)
   "Eval text use comint-proc-query."
   (comint-proc-query proc (clojure-repl--normalize-input text)))
 
-(defun clojure-repl--eval-text-silently (proc text)
+(defun clojure-repl--send-string (proc text)
   "Eval text without echo"
-  (comint-send-string proc (clojure-repl--normalize-input text))
-  (display-buffer (clojure-repl--repl-buffer)))
-
-(defun clojure-repl--eval-text (proc text query-p)
   (with-current-buffer (process-buffer (clojure-repl--repl-process))
       (comint-goto-process-mark)
       (insert "\n")
       (comint-set-process-mark))
-  (if query-p (clojure-repl--eval-text-as-query proc text)
-    (clojure-repl--eval-text-silently proc text)))
+  (comint-send-string proc (clojure-repl--normalize-input text))
+  (display-buffer (clojure-repl--repl-buffer)))
+
+(defun clojure-repl--eval-text (proc text query-p)
+  (if query-p (clojure-repl--proc-query proc text)
+    (clojure-repl--send-string proc text)))
+
+(defun clojure-repl--find-repl-ns ()
+  (save-excursion
+    (with-current-buffer (process-buffer (clojure-repl--repl-process))
+      (comint-goto-process-mark)
+      (let ((str (thing-at-point 'paragraph t)))
+        (when (re-search-backward "^\\([^=> \n]+\\)=> *" nil t)
+          (match-string-no-properties 1))
+        ))))
+
+(defun clojure-repl--the-same-ns-p ()
+  (let ((source-ns (clojure-find-ns))
+        (repl-ns (clojure-repl--find-repl-ns)))
+    (string= source-ns repl-ns)
+    )
+  )
+
 
 (defun clojure-repl-eval-newline ()
   "Execute defun."
@@ -594,14 +616,15 @@ process buffer for a list of commands.)"
 
 
 (defun clojure-repl--auto-load ()
-  (when (and clojure-repl-auto-load (derived-mode-p 'clojure-mode))
-    (save-excursion
-     (let* ((proc (clojure-repl--repl-process))
-            (ns (clojure-find-ns)))
-       (unless ns
-         (user-error "No namespace found in current buffer"))
-       (clojure-repl--eval-text proc (format clojure-repl-auto-load-command ns (if clojure-repl-auto-repl "true" "false")) t)))
-))
+  (when (not (and (clojure-repl-smart-auto-load) (clojure-repl--the-same-ns-p)))
+    (when (and clojure-repl-auto-load (derived-mode-p 'clojure-mode))
+      (save-excursion
+        (let* ((proc (clojure-repl--repl-process))
+               (ns (clojure-find-ns)))
+          (unless ns
+            (user-error "No namespace found in current buffer"))
+          (clojure-repl--eval-text proc (format clojure-repl-auto-load-command ns (if clojure-repl-auto-repl "true" "false")) t)))
+)))
 
 (defun clojure-repl-eval-region ()
   "Execute region."
