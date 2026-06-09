@@ -84,7 +84,8 @@
    `clojure-repl-auto-load'
    "
   (interactive)
-  (setq clojure-repl-auto-load t))
+  (setq clojure-repl-auto-load t
+        clojure-repl-smart-auto-load t))
 
 
 (defun clojure-repl-auto-load-disable ()
@@ -93,7 +94,8 @@
    `clojure-repl-auto-load'
    "
   (interactive)
-  (setq clojure-repl-auto-load nil))
+  (setq clojure-repl-auto-load nil
+        clojure-repl-smart-auto-load nil))
 
 
 (defvar clojure-repl-auto-load-command

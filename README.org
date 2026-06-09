@@ -1,7 +1,5 @@
 #+title: clojure-repl.el: Clojure REPL interaction
 
-*Note:* This documentation is incomplete, may be unreliable, and should be considered as a draft.
-
 This package provides basic interaction with a Clojure subprocess
  (REPL).  It's based on ideas from ~inferior-lisp~ and ~inf-clojure~
  packages.  ~clojure-repl~ provides a set of essential features for
@@ -22,13 +20,284 @@ This package provides basic interaction with a Clojure subprocess
 *Note:* The package is independent from clojure lsp, but clojure lsp is a
 good complement to ~clojure-repl~.
 
-*Note:* Package ~clojure-repl~ evaluate current ~sexp~ instead of ~last sexp~.
-
 * Unwanted effects
+
+Development tools has features which I called /Unwanted effects/. It
+is not bugs, it is just how tool works. My statement is that some time
+we can fix /Unwanted effects/, but some time it is better to accept
+/Unwanted effects/ rather than fix it, because may be a fix introduce
+new bugs or other /Unwanted effects/. It is kind of limitation if existing
+tool and attempt to fix all /Unwanted effects/ just raise other /Unwanted Effects/
+or even produce incorrect result.
+
+Let me give an example for ~clojure~. For instance let's run ~clj~
+interpreter and run code ~(future (do (Thread/sleep 10) (println "Hello")))~
+
+#+begin_src clojure
+user=> (future (do (Thread/sleep 10) (println "Hello")))
+#object[clojure.core$future_call$reify__8578 0x153f66e7 {:status :pending, :val nil}]
+user=> Hello
+_
+#+end_src
+
+clojure is ready for input but there is no prompt. You can immediate
+type new expression for eval, let say ~(+ 1 2)~ and then click enter
+or click enter to get a prompt and then type ~(+ 1 2)~. The fact that
+~clojure~ is ready for input but there is no prompt is /Unwanted effects/.
+
+I will give other example of /Unwanted effects/ for emacs comint mode. Suppose we run
+clojure in comint mode and then like to send ~(+ 1 2)~ into clojure process.
+
+#+begin_src emacs-lisp
+  (comint-send-string (get-buffer-process (current-buffer)) "(+ 1 2)\n")
+#+end_src
+
+The answer in comint buffer will be
+
+#+begin_src
+user=> 3  
+#+end_src
+
+But we want to have
+
+#+begin_src
+3
+user=>   
+#+end_src
+
+From other hand if we just type ~(+ 1 2)~ in repl everything works as expected, because we click enter in repl and we will see
+as expected
+
+#+begin_src clojure
+user=> (+ 1 2)
+3
+user=> _  
+#+end_src
+
+
+There are several ways to fix this /Unwanted effects/. If we agree to see input we can do this
+
+#+begin_src emacs-lisp
+  (progn
+   (comint-goto-process-mark)
+   (insert "(+ 1 2)")
+   (comint-send-input)
+   )  
+#+end_src
+
+And output will be exaclty as in ~clojure~ repl
+
+#+begin_src clojure
+user=> (+ 1 2)
+3
+user=> _
+#+end_src
+
+
+But we probably don't like to see input when send string from clojure buffer, for this case we can use this
+
+#+begin_src emacs-lisp
+  (progn
+    (comint-goto-process-mark)
+    (insert "\n")
+    (comint-set-process-mark)
+    (comint-send-string (get-buffer-process (current-buffer)) "(+ 1 2)\n"))
+#+end_src
+
+And output will be
+
+#+begin_src clojure
+user=> 
+3
+user=> 
+#+end_src
+
+Other way to print result of ~(+ 1 2)~ in new line is specify
+preoutput filter, and try to format appropriate by regular expression
+
+#+begin_src emacs-lisp
+   (add-hook 'comint-preoutput-filter-functions #'my-preoutput-filter nil t)
+#+end_src
+
+I believe that this way will produce bugs and other /Unwanted Effects/ if one for instance
+try to execute below code
+
+#+begin_src clojure
+  (println "user=> ")
+  (println "user=> user=>")
+#+end_src
+
+
 
 * Clojure repl flows
 
+Package ~clojure-repl~ just try to automate some routines which of course possible do with separate REPL and separate editor
+which is not connected to REPL.
+
+So how I would work if I have separate editor and REPL. I usually have a project. Suppose I like to work with some namespace, let say ~vk.assistant.gql~.
+First what I do is load namespace
+
+#+begin_src clojure
+user=> (require 'vk.assistant.gql)
+nil
+#+end_src
+
+If no errors I switch to ~vk.assistant.gql~ namespace
+
+#+begin_src clojure
+user=> (in-ns 'vk.assistant.gql )
+#object[clojure.lang.Namespace 0x6fe5da76 "vk.assistant.gql"]  
+#+end_src
+
+I prefer work from namespace which I currently work rather than with
+user namespace.  Last things which I like is install REPL functions
+such as ~doc~ or ~source~ which available immediate in ~user~
+namespace
+
+#+begin_src clojure
+vk.assistant.gql=> (apply require clojure.main/repl-requires)
+nil  
+#+end_src
+
+Now I am ready to define and execute new function in namespace ~vk.assistant.gql~
+
+#+begin_src clojure
+vk.assistant.gql=> (defn foo "foo function" [] :foo)
+#'vk.assistant.gql/foo
+vk.assistant.gql=> (doc foo)
+-------------------------
+vk.assistant.gql/foo
+([])
+  foo function
+nil  
+#+end_src
+
+You can find yourself some /Unwanted effects/ here. For instance if namespace ~vk.assistant.gql~ contains error,
+you can find something weird
+
+#+begin_src clojure
+user=> (require 'vk.assistant.gql)
+Syntax error compiling at (vk/assistant/gql.clj:1:1).
+Unable to resolve symbol: fff in this context
+user=> (require 'vk.assistant.gql)
+nil
+user=> (in-ns 'vk.assistant.gql)
+#object[clojure.lang.Namespace 0x6fe5da76 "vk.assistant.gql"]
+vk.assistant.gql=> 
+vk.assistant.gql=> (when true 1)
+Syntax error compiling at (REPL:1:1).
+Unable to resolve symbol: when in this context  
+#+end_src
+
+It also described here https://clojure.org/guides/repl/navigating_namespaces
+
+It is not mandatory restart REPL, if I fix error in my namespace I can fix everything as
+
+#+begin_src clojure
+vk.assistant.gql=> (in-ns 'user)
+#object[clojure.lang.Namespace 0x1f4d38f9 "user"]
+user=> (require 'vk.assistant.gql :reload)
+nil
+user=>   
+#+end_src
+
 * Emacs flows
+
+By default ~clojure-repl~ automatically evaluate ~sexp~, ~defun~, ~region~, ~paragraph~, ~buffer~ in current namespace(buffer namespace).
+Suppose you open file ~src/vk/assistant/gql.clj~ and click ~C-x C-e~ (~clojure-repl-eval-sexp~).
+
+Package ~clojure-repl~ try to auto load current namespace. It happened
+only if auto load is enabled. That represented by variable
+~clojure-repl-auto-load~, which is ~t~ by default.
+
+Then ~clojure-repl~ compare current buffer namespace with REPL
+namespace. If these are the same no auto load required. This
+comparison happened only if variable ~clojure-repl-smart-auto-load~ is
+~t~. Value ~t~ is the default.
+
+If ~clojure-repl~ recognized that auto load required it execute form like this
+
+#+begin_src clojure
+    (let [target-ns 'vk.assistant.clojure
+        install-repl? true]
+    (if (or (= target-ns 'user) (= target-ns (ns-name *ns*)))
+      [:clojure-repl/auto :skip]
+      (try
+        (in-ns 'user)
+        (clojure.core/require target-ns)
+        (in-ns target-ns)
+        (when install-repl?
+          (require 'clojure.main)
+          (apply require clojure.main/repl-requires))
+        [:clojure-repl/auto :success]
+        (catch Exception e
+          (in-ns 'user)
+          [:clojure-repl/auto :fail (.getMessage e)]))))
+#+end_src
+
+By default it will be executed once after you switch to new clojure buffer. You will see output like this for first time
+
+#+begin_src clojure
+  [:clojure-repl/auto :success]
+#+end_src
+
+There are some of evaluation functions available
+
+| Function                    | Key     | Description       |
+|-----------------------------+---------+-------------------|
+| clojure-repl-eval-defun     | C-M-x   | Eval defun        |
+| clojure-repl-eval-paragraph | C-c C-c | Eval paragraph    |
+| clojure-repl-eval-sexp      | C-c C-e | Eval sexp         |
+|                             | C-x C-e |                   |
+| clojure-repl-pprint-sexp    | C-c C-p | Pretty print sexp |
+| clojure-repl-eval-buffer    | C-c C-b | Eval buffer       |
+| clojure-repl-eval-region    | C-c C-r | Eval region       |
+|                             |         |                   |
+
+All this functions use emacs ~things-at-point~ to get text.
+
+*Note:* Function ~clojure-repl-eval-sexp~ and ~clojure-repl-pprint-sexp~ use current ~sexp~, not last ~sexp~ used by packages ~inf-clojure~ or ~CIDER~,
+I selected this approach because it is convenient way to extract text, just use ~things-at-point~, and found it not worse than use last ~sexp~.
+
+There is also special function ~clojure-repl-eval-newline~ (~C-c C-n~). It is fix for /Unwanted effects/ like
+
+#+begin_src
+(future (do (Thread/sleep 10) (println "Hello")))  
+#+end_src
+
+If you try execute this, and then try to type anything in REPL or send some text, you will see message from emacs "Text is read-only".
+That's because I set ~comint-prompt-read-only~ to ~t~. But if you click ~clojure-repl-eval-newline~ (~C-c C-n~) you will see prompt again.
+
+You may prefer do not auto load current namespace. You can switch this dynamically with
+
+|--------------------------------+-------------------|
+| Function                       | Description       |
+|--------------------------------+-------------------|
+| clojure-repl-auto-load-disable | disable auto load |
+| clojure-repl-auto-load-enable  | enable auto load  |
+
+Or set custom variables
+
+| Variable                     | Description                                                       |
+|------------------------------+-------------------------------------------------------------------|
+| clojure-repl-smart-auto-load | Compare buffer namespace with REPL namespace before try auto load |
+| clojure-repl-auto-load       | Enable/Disable auto load                                          |
+| clojure-repl-auto-repl       | Install REPL functions after auto load                            |
+|                              |                                                                   |
+
+In case of manual mode(and auto load) you can use
+
+| Function                | Description                       |
+|-------------------------+-----------------------------------|
+| clojure-repl-load-file  | load current file                 |
+| clojure-repl-load       | load current namespace            |
+| clojure-repl-reload     | reload current namespace          |
+| clojure-repl-reload-all | reload namespace and dependencies |
+| clojure-repl-load-repl  | install REPL functions            |
+
+
+There are many other functions exists, you can see everything in menu or with describe mode.
+
 
 * Installation
 
@@ -44,7 +313,7 @@ Currently, the recommended ways to install =clojure-repl= are with
   :hook (clojure-mode . clojure-repl-minor-mode))
 #+end_src
 
-* Install from local source checkout
+** Install from local source checkout
 
 #+begin_src emacs-lisp
 (use-package clojure-repl
@@ -53,12 +322,6 @@ Currently, the recommended ways to install =clojure-repl= are with
 #+end_src
 
 
-* Keybinding
-
-** Keybinding for clojure buffer
-
-** Keybinding for REPL buffer
-
-
 * Configuration
 
+TODO
