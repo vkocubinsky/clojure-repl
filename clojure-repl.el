@@ -616,15 +616,16 @@ process buffer for a list of commands.)"
 
 
 (defun clojure-repl--auto-load ()
-  (when (not (and (clojure-repl-smart-auto-load) (clojure-repl--the-same-ns-p)))
-    (when (and clojure-repl-auto-load (derived-mode-p 'clojure-mode))
+  (when (and clojure-repl-auto-load (derived-mode-p 'clojure-mode)
+             (not (and clojure-repl-smart-auto-load (clojure-repl--the-same-ns-p)))
+               )
       (save-excursion
         (let* ((proc (clojure-repl--repl-process))
                (ns (clojure-find-ns)))
           (unless ns
             (user-error "No namespace found in current buffer"))
           (clojure-repl--eval-text proc (format clojure-repl-auto-load-command ns (if clojure-repl-auto-repl "true" "false")) t)))
-)))
+))
 
 (defun clojure-repl-eval-region ()
   "Execute region."
